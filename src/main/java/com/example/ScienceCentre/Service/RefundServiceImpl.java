@@ -6,10 +6,7 @@ import com.example.ScienceCentre.Enums.RefundStatus;
 import com.example.ScienceCentre.Enums.TicketStatus;
 import com.example.ScienceCentre.Exception.BusinessException;
 import com.example.ScienceCentre.Model.*;
-import com.example.ScienceCentre.Repository.ApplicationConfigRepository;
-import com.example.ScienceCentre.Repository.PaymentRepository;
-import com.example.ScienceCentre.Repository.RefundRepository;
-import com.example.ScienceCentre.Repository.TicketRepository;
+import com.example.ScienceCentre.Repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +20,9 @@ public class RefundServiceImpl implements RefundService {
 
     @Autowired
     private RefundRepository refundRepository;
+
+    @Autowired
+    private LookupListRepository lookupListRepository;
 
     @Autowired
     private TicketRepository ticketRepository;
@@ -60,6 +60,13 @@ public class RefundServiceImpl implements RefundService {
 
         Ticket ticket = ticketRepository.findByTicketNumber(request.getTicketNumber())
                 .orElseThrow(() -> new BusinessException("Ticket not found"));
+
+        // Check refund time limit
+        LocalDateTime bookingTime = ticket.getBookingTime();
+
+        if (!bookingTime.toLocalDate().equals(LocalDateTime.now().toLocalDate())) {
+            throw new BusinessException("Refund time is expired");
+        }
 
         Payment payment = paymentRepository.findByTicket(ticket)
                 .orElseThrow(() -> new BusinessException("Payment not found"));
@@ -101,7 +108,25 @@ public class RefundServiceImpl implements RefundService {
         refundRepository.save(refund);
 
         if (!approvalRequired) {
-            ticket.setStatus(TicketStatus.FULLY_REFUNDED);
+
+            List<String> requestedTypes = request.getTicketTypes();
+
+            List<LookupList> ticketTypes = lookupListRepository.findByLookupCode("TICKET_TYPE");
+
+            if (ticketTypes.isEmpty()) {
+                throw new BusinessException("Ticket types not configured");
+            }
+
+            String entryTicketValue = ticketTypes.get(0).getLookupValue();
+
+            boolean entryRefunded = requestedTypes.contains(entryTicketValue);
+
+            if (entryRefunded) {
+                ticket.setStatus(TicketStatus.FULLY_REFUNDED);
+            } else {
+                ticket.setStatus(TicketStatus.PARTIALLY_REFUNDED);
+            }
+
             ticketRepository.save(ticket);
         }
     }
@@ -127,8 +152,27 @@ public class RefundServiceImpl implements RefundService {
         refundRepository.save(refund);
 
         if (status == RefundStatus.APPROVED) {
+
             Ticket ticket = refund.getPayment().getTicket();
-            ticket.setStatus(TicketStatus.FULLY_REFUNDED);
+
+            List<LookupList> ticketTypes = lookupListRepository.findByLookupCode("TICKET_TYPE");
+
+            if (ticketTypes.isEmpty()) {
+                throw new BusinessException("Ticket types not configured");
+            }
+
+            String entryTicketValue = ticketTypes.get(0).getLookupValue();
+
+            boolean entryExists = ticket.getTicketItems()
+                    .stream()
+                    .anyMatch(i -> i.getTicketType().equals(entryTicketValue));
+
+            if (entryExists) {
+                ticket.setStatus(TicketStatus.FULLY_REFUNDED);
+            } else {
+                ticket.setStatus(TicketStatus.PARTIALLY_REFUNDED);
+            }
+
             ticketRepository.save(ticket);
         }
     }

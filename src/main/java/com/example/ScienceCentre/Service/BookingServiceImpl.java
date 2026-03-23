@@ -3,11 +3,9 @@ package com.example.ScienceCentre.Service;
 import com.example.ScienceCentre.DTO.RequestDto.BookingRequestDto;
 import com.example.ScienceCentre.DTO.ResponseDto.BookingResponseDto;
 import com.example.ScienceCentre.Enums.TicketStatus;
-import com.example.ScienceCentre.Model.Centre;
-import com.example.ScienceCentre.Model.PricingConfig;
-import com.example.ScienceCentre.Model.Ticket;
-import com.example.ScienceCentre.Model.TicketItem;
+import com.example.ScienceCentre.Model.*;
 import com.example.ScienceCentre.Repository.CentreRepository;
+import com.example.ScienceCentre.Repository.LookupListRepository;
 import com.example.ScienceCentre.Repository.PricingRepository;
 import com.example.ScienceCentre.Repository.TicketRepository;
 import com.example.ScienceCentre.Util.TicketNumberGenerator;
@@ -16,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,6 +31,9 @@ public class BookingServiceImpl implements BookingService {
 
     @Autowired
     private PricingRepository pricingRepository;
+
+    @Autowired
+    private LookupListRepository lookupListRepository;
 
     @Override
     @Transactional
@@ -54,6 +56,14 @@ public class BookingServiceImpl implements BookingService {
         }
 
         List<TicketItem> items = new ArrayList<>();
+
+        List<LookupList> ticketTypes = lookupListRepository.findByLookupCode("TICKET_TYPE");
+
+        if (ticketTypes.isEmpty()) {
+            throw new RuntimeException("No ticket types configured in lookup");
+        }
+
+        String entryTicketValue = ticketTypes.get(0).getLookupValue();
 
         for (BookingRequestDto.TicketItemRequestDto itemDto : request.getItems()) {
 
@@ -80,7 +90,7 @@ public class BookingServiceImpl implements BookingService {
             item.setQuantity(itemDto.getQuantity());
             item.setAmount(config.getPrice().multiply(BigDecimal.valueOf(itemDto.getQuantity())));
 
-            item.setSlotTime("GENERAL_ENTRY".equals(ticketTypeValue) ? "Full Day" : "Scheduled");
+            item.setSlotTime(entryTicketValue.equals(ticketTypeValue) ? "Full Day" : "Scheduled");
 
             items.add(item);
         }
@@ -91,11 +101,26 @@ public class BookingServiceImpl implements BookingService {
         return mapToResponse(savedTicket);
     }
 
+    @Override
+    public List<BookingResponseDto> getTodayTickets(Long centreId) {
+
+        LocalDate today = LocalDate.now();
+
+        List<Ticket> tickets = ticketRepository
+                .findByCentreIdAndBookingDate(centreId, today);
+
+        return tickets.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
     private BookingResponseDto mapToResponse(Ticket ticket) {
         BookingResponseDto response = new BookingResponseDto();
         response.setId(ticket.getId());
         response.setTicketNumber(ticket.getTicketNumber());
         response.setBookingTime(ticket.getBookingTime());
+
+        response.setStatus(ticket.getStatus().name());
 
         response.setItems(
                 ticket.getTicketItems().stream().map(i -> {
@@ -111,5 +136,35 @@ public class BookingServiceImpl implements BookingService {
         );
 
         return response;
+    }
+
+    @Override
+    public List<BookingResponseDto> getTicketsByDate(Long centreId, LocalDate date) {
+        List<Ticket> tickets = ticketRepository.findByCentreIdAndBookingDate(centreId, date);
+        return tickets.stream().map(this::mapToResponse).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<BookingResponseDto> getTicketsByMonth(Long centreId, int month, int year) {
+        LocalDate start = LocalDate.of(year, month, 1);
+        LocalDate end = start.withDayOfMonth(start.lengthOfMonth());
+        return getTicketsByRange(centreId, start, end);
+    }
+
+    @Override
+    public List<BookingResponseDto> getTicketsByYear(Long centreId, int year) {
+        LocalDate start = LocalDate.of(year, 1, 1);
+        LocalDate end = LocalDate.of(year, 12, 31);
+        return getTicketsByRange(centreId, start, end);
+    }
+
+    @Override
+    public List<BookingResponseDto> getTicketsByRange(Long centreId, LocalDate start, LocalDate end) {
+        // FIX: Call the repository method that uses JOIN FETCH
+        List<Ticket> tickets = ticketRepository.findByCentreIdAndBookingDateRange(centreId, start, end);
+
+        return tickets.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
     }
 }

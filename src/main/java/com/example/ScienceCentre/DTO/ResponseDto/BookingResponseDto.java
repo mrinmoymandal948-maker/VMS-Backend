@@ -16,6 +16,7 @@ public class BookingResponseDto
     private Long id;
     private String ticketNumber;
     private LocalDateTime bookingTime;
+    private String status;
     private List<TicketItemDto> items;
 
     @Data

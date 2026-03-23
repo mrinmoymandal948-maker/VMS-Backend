@@ -14,6 +14,7 @@ public class TicketMapper {
                 ticket.getId(),
                 ticket.getTicketNumber(),
                 ticket.getBookingTime(),
+                ticket.getStatus().name(),
                 ticket.getTicketItems()
                         .stream()
                         .map(item -> new BookingResponseDto.TicketItemDto(
