@@ -13,11 +13,15 @@ import java.util.Optional;
 @Repository
 public interface RefundRepository extends JpaRepository<Refund, Long>
 {
+
+    List<Refund> findByPaymentTicketTicketNumber(String ticketNumber);
+
     List<Refund> findByStatus(RefundStatus status);
     // Used by the Frontend to check if the status changed for a ticket
     Optional<Refund> findTopByPaymentTicketTicketNumberOrderByRequestedAtDesc(String ticketNumber);
     @Query("SELECT COUNT(r) FROM Refund r WHERE r.status='PENDING'")
     Long countByStatus(RefundStatus status);
+
 
     @Query("SELECT COALESCE(SUM(r.refundAmount),0) FROM Refund r WHERE r.status = com.example.ScienceCentre.Enums.RefundStatus.APPROVED AND DATE(r.requestedAt) = :date")
     Double sumApprovedRefundByDate(@Param("date") LocalDate date);

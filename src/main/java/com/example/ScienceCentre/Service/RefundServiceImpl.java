@@ -41,14 +41,47 @@ public class RefundServiceImpl implements RefundService {
         Ticket ticket = ticketRepository.findByTicketNumber(ticketNumber)
                 .orElseThrow(() -> new BusinessException("Invalid ticket number"));
 
-        List<String> allTypes = ticket.getTicketItems()
-                .stream()
-                .map(TicketItem::getTicketType)
+        // Get all APPROVED or PENDING refunds for this ticket
+        List<Refund> refunds = refundRepository
+                .findByPaymentTicketTicketNumber(ticketNumber);
+
+        // Sum up total refunded amount from APPROVED + PENDING refunds
+        BigDecimal totalRefunded = refunds.stream()
+                .filter(r -> r.getStatus() == RefundStatus.APPROVED
+                        || r.getStatus() == RefundStatus.PENDING)
+                .map(Refund::getRefundAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // Match refunded amount against ticket items to find which types were refunded
+        // We greedily match items until the refunded amount is accounted for
+        List<TicketItem> allItems = ticket.getTicketItems();
+        BigDecimal remaining = totalRefunded;
+        List<String> refundedTypes = new ArrayList<>();
+
+        for (TicketItem item : allItems) {
+            if (remaining.compareTo(BigDecimal.ZERO) <= 0) break;
+            if (item.getAmount().compareTo(BigDecimal.ZERO) > 0
+                    && remaining.compareTo(item.getAmount()) >= 0) {
+                refundedTypes.add(item.getTicketType());
+                remaining = remaining.subtract(item.getAmount());
+            }
+        }
+
+        // Build items list with quantity = 0 if already refunded
+        List<Map<String, Object>> items = allItems.stream()
+                .map(item -> {
+                    Map<String, Object> itemMap = new HashMap<>();
+                    itemMap.put("ticketType", item.getTicketType());
+                    itemMap.put("amount", item.getAmount());
+                    itemMap.put("quantity", refundedTypes.contains(item.getTicketType()) ? 0 : item.getQuantity());
+                    return itemMap;
+                })
                 .toList();
 
         Map<String, Object> response = new HashMap<>();
-        response.put("ticketTypes", allTypes);
-        response.put("alreadyRefunded", Collections.emptyList());
+        response.put("ticketNumber", ticket.getTicketNumber());
+        response.put("status", ticket.getStatus().name());
+        response.put("items", items);
 
         return response;
     }
