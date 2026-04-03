@@ -17,4 +17,7 @@ public interface RefundService {
     List<RefundResponseDto> getPendingRefunds();
 
     Map<String, Object> getRefundableTicketDetails(String ticketNumber);
+
+    Object getRefundAmountByTicket(String ticketNumber);
 }
+

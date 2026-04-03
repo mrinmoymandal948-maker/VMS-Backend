@@ -20,4 +20,9 @@ public class PaymentController {
     {
         return ResponseEntity.ok(paymentService.confirmPayment(paymentRequest));
     }
+
+    @GetMapping("/ticket/{ticketNumber}")
+    public ResponseEntity<?> getPaymentByTicket(@PathVariable String ticketNumber) {
+        return ResponseEntity.ok(paymentService.getPaymentByTicket(ticketNumber));
+    }
 }

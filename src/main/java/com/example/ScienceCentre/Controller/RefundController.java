@@ -45,4 +45,9 @@ public class RefundController {
     public ResponseEntity<?> getStatus(@PathVariable String ticketNumber) {
         return ResponseEntity.ok(refundService.getLatestRefund(ticketNumber));
     }
+
+    @GetMapping("/ticket-amount/{ticketNumber}")
+    public ResponseEntity<?> getRefundAmountByTicket(@PathVariable String ticketNumber) {
+        return ResponseEntity.ok(refundService.getRefundAmountByTicket(ticketNumber));
+    }
 }

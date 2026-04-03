@@ -258,4 +258,15 @@ public class RefundServiceImpl implements RefundService {
                 })
                 .toList();
     }
+
+    @Override
+    public Object getRefundAmountByTicket(String ticketNumber) {
+
+        List<Refund> refunds = refundRepository.findByPaymentTicketTicketNumber(ticketNumber);
+
+        return refunds.stream()
+                .filter(r -> r.getStatus() == RefundStatus.APPROVED)
+                .map(Refund::getRefundAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
 }

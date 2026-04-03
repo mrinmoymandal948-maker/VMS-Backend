@@ -50,4 +50,14 @@ public class PaymentServiceImpl implements PaymentService {
 
         return response;
     }
+
+    @Override
+    public Object getPaymentByTicket(String ticketNumber) {
+        Ticket ticket = ticketRepository.findByTicketNumber(ticketNumber)
+                .orElseThrow(() -> new RuntimeException("Ticket not found"));
+
+        return paymentRepository.findByTicket(ticket)
+                .map(Payment::getAmountPaid)
+                .orElse(java.math.BigDecimal.ZERO);
+    }
 }
